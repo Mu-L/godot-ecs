@@ -2,16 +2,16 @@ extends "archive.gd"
 
 var _dict: Dictionary
 
-func _init(dict: Dictionary) -> void:
+func _init(dict: Dictionary = {}) -> void:
 	_dict = dict
 	version = 0
 	
 # override
-func _set_var(key: String, value) -> void:
+func _set_var(key: StringName, value) -> void:
 	_dict[key] = value
 	
 # override
-func _remove(key: String) -> bool:
+func _remove(key: StringName) -> bool:
 	return _dict.erase(key)
 	
 # override

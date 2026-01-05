@@ -1,29 +1,37 @@
 extends RefCounted
 class_name ECSWorld
 
-const VERSION = "2.1.0"
+const VERSION = "1.0.0"
 
 var debug_print: bool		# ecs logging
-var debug_entity: bool		# for entity debugging
+var debug_entity: bool:		# for entity debugging
+	set(v):
+		debug_entity = v
+		_create_entity_callback = _create_debug_entity if v else _create_common_entity
+
 var ignore_notify_log: Dictionary # ignore notify log
 
-signal on_system_viewed(name: String, components: Array)
+signal on_system_viewed(name: StringName, components: Array)
+signal on_update(delta: float)
 
-var _name: String
+var _name: StringName
 
 var _entity_id: int = 0xFFFFFFFF
 var _entity_pool: Dictionary
 var _system_pool: Dictionary
 var _command_pool: Dictionary
-var _event_pool := ECSEventCenter.new()
+var _event_pool := GameEventCenter.new()
 
 var _type_component_dict: Dictionary
 var _entity_component_dict: Dictionary
 	
 func _init(name := "ECSWorld") -> void:
 	_name = name
+	debug_entity = false
 	
-func name() -> String:
+# ==============================================================================
+# public
+func name() -> StringName:
 	return _name
 	
 func clear() -> void:
@@ -43,8 +51,6 @@ func create_entity(id: int = 0) -> ECSEntity:
 func remove_entity(entity_id: int) -> bool:
 	if not remove_all_components(entity_id):
 		return false
-	for group_name: String in entity_get_groups(entity_id):
-		entity_remove_from_group(entity_id, group_name)
 	if debug_print:
 		print("entity <%s:%d> destroyed." % [_name, entity_id])
 	_entity_component_dict.erase(entity_id)
@@ -57,9 +63,7 @@ func remove_all_entities() -> bool:
 	return true
 	
 func get_entity(id: int) -> ECSEntity:
-	if has_entity(id):
-		return _entity_pool[id]
-	return null
+	return _entity_pool.get(id)
 	
 func get_entity_keys() -> Array:
 	return _entity_pool.keys()
@@ -67,7 +71,8 @@ func get_entity_keys() -> Array:
 func has_entity(id: int) -> bool:
 	return _entity_pool.has(id)
 	
-func add_component(entity_id: int, name: String, component := ECSComponent.new()) -> bool:
+func add_component(entity_id: int, name: StringName, component := ECSComponent.new()) -> bool:
+	assert(component._world == null)
 	if not _add_entity_component(entity_id, name, component):
 		return false
 	component._name = name
@@ -80,7 +85,7 @@ func add_component(entity_id: int, name: String, component := ECSComponent.new()
 	entity.on_component_added.emit(entity, component)
 	return true
 	
-func remove_component(entity_id: int, name: String) -> bool:
+func remove_component(entity_id: int, name: StringName) -> bool:
 	var c: ECSComponent = get_component(entity_id, name)
 	if not c or not _remove_entity_component(entity_id, name):
 		return false
@@ -95,11 +100,11 @@ func remove_all_components(entity_id: int) -> bool:
 	if not has_entity(entity_id):
 		return false
 	var entity_dict: Dictionary = _entity_component_dict[entity_id]
-	for key: String in entity_dict.keys():
+	for key: StringName in entity_dict.keys():
 		remove_component(entity_id, key)
 	return true
 	
-func get_component(entity_id: int, name: String) -> ECSComponent:
+func get_component(entity_id: int, name: StringName) -> ECSComponent:
 	if not has_entity(entity_id):
 		return null
 	var entity_dict: Dictionary = _entity_component_dict[entity_id]
@@ -116,126 +121,54 @@ func get_components(entity_id: int) -> Array:
 func get_component_keys() -> Array:
 	return _type_component_dict.keys()
 	
-func has_component(entity_id: int, name: String) -> bool:
+func has_component(entity_id: int, name: StringName) -> bool:
 	if not has_entity(entity_id):
 		return false
 	var entity_dict: Dictionary = _entity_component_dict[entity_id]
 	return entity_dict.has(name)
 	
-func view(name: String, filter := Callable()) -> Array:
+func view(name: StringName, filter := Callable()) -> Array:
 	if not _type_component_dict.has(name):
 		return []
-	if not filter.is_valid():
-		return _type_component_dict[name].values()
-	var ret: Array = []
-	for c: ECSComponent in _type_component_dict[name].values() as Array:
-		if filter.call(c):
-			ret.append(c)
-	return ret
+	var values: Array = _type_component_dict[name].values()
+	return values.filter(filter) if filter.is_valid() else values
 	
-func multi_view(names: Array[String], filter := Callable()) -> Array:
-	var result := []
-	for c: ECSComponent in view(names.front()):
-		var e: ECSEntity = c.entity()
-		if _is_satisfy_components(e, names):
-			var dict := _get_satisfy_components(e, names)
-			if filter.is_valid():
-				if filter.call(dict):
-					result.append(dict)
-			else:
-				result.append(dict)
-	return result
-	
-var _group_entity_dict: Dictionary
-var _entity_groups: Dictionary
-	
-func entity_add_to_group(entity_id: int, group_name: String) -> bool:
-	if not has_entity(entity_id):
-		return false
-	var group_entity_dict: Dictionary = _get_group_entity_dict(group_name)
-	group_entity_dict[ get_entity(entity_id) ] = true
-	var entity_groups_dict: Dictionary = _get_entity_groups(entity_id)
-	entity_groups_dict[ group_name ] = true
-	if debug_print:
-		print("entity <%s:%d> add to group <%s>." % [_name, entity_id, group_name])
-	return true
-	
-func entity_remove_from_group(entity_id: int, group_name: String) -> bool:
-	if not has_entity(entity_id):
-		return false
-	var group_entity_dict: Dictionary = _get_group_entity_dict(group_name)
-	group_entity_dict.erase( get_entity(entity_id) )
-	var entity_groups_dict: Dictionary = _get_entity_groups(entity_id)
-	entity_groups_dict.erase( group_name )
-	if debug_print:
-		print("entity <%s:%d> remove from group <%s>." % [_name, entity_id, group_name])
-	return true
-	
-func entity_get_groups(entity_id: int) -> Array:
-	if not has_entity(entity_id):
+func multi_view(names: Array, filter := Callable()) -> Array:
+	var views: Array = view(names.front())
+	if views.is_empty():
 		return []
-	return _get_entity_groups(entity_id).keys()
+	views = views.filter(func(c: ECSComponent):
+		return names.all(func(key: StringName):
+			return has_component(c.entity().id(), key)
+		)
+	)
+	views = views.map(func(c: ECSComponent):
+		return _get_satisfy_components(c.entity(), names)
+	)
+	return views.filter(filter) if filter.is_valid() else views
 	
-func _get_group_entity_dict(group_name: String) -> Dictionary:
-	if not _group_entity_dict.has(group_name):
-		_group_entity_dict[group_name] = {}
-	return _group_entity_dict[group_name]
-	
-func _get_entity_groups(entity_id: int) -> Dictionary:
-	if not _entity_groups.has(entity_id):
-		_entity_groups[entity_id] = {}
-	return _entity_groups[entity_id]
-	
-func group(group_name: String) -> Array:
-	if _group_entity_dict.has(group_name):
-		return _group_entity_dict[group_name].keys()
-	return []
-	
-func group_view(group_name: String, name: String, filter := Callable()) -> Array:
-	var result := []
-	for e: ECSEntity in group(group_name):
-		var c: ECSComponent = e.get_component(name)
-		if c == null:
-			continue
-		if filter.is_valid():
-			if filter.call(c):
-				result.append(c)
-		else:
-			result.append(c)
-	return result
-	
-func group_multi_view(group_name: String, component_names: Array[String], filter := Callable()) -> Array:
-	var result := []
-	for e: ECSEntity in group(group_name):
-		if _is_satisfy_components(e, component_names):
-			var dict := _get_satisfy_components(e, component_names)
-			if filter.is_valid():
-				if filter.call(dict):
-					result.append(dict)
-			else:
-				result.append(dict)
-	return result
-	
-func add_system(name: String, system: ECSSystem) -> bool:
+func add_system(name: StringName, system: ECSSystem) -> bool:
 	remove_system(name)
 	_system_pool[name] = system
 	system._set_name(name)
 	system._set_world(self)
+	set_system_update(name, true)
 	system.on_enter(self)
 	return true
 	
-func remove_system(name: String) -> bool:
+func remove_system(name: StringName) -> bool:
 	if not _system_pool.has(name):
 		return false
+	set_system_update(name, false)
 	_system_pool[name].on_exit(self)
 	return _system_pool.erase(name)
 	
 func remove_all_systems() -> bool:
-	for name: String in _system_pool.keys():
+	for name: StringName in _system_pool.keys():
 		remove_system(name)
 	return true
 	
-func get_system(name: String) -> ECSSystem:
+func get_system(name: StringName) -> ECSSystem:
 	if not _system_pool.has(name):
 		return null
 	return _system_pool[name]
@@ -243,7 +176,7 @@ func get_system(name: String) -> ECSSystem:
 func get_system_keys() -> Array:
 	return _system_pool.keys()
 	
-func has_system(name: String) -> bool:
+func has_system(name: StringName) -> bool:
 	return _system_pool.has(name)
 	
 class _command_shell extends RefCounted:
@@ -256,14 +189,14 @@ class _command_shell extends RefCounted:
 		_c_name = name
 		_class = script
 		_debug_print = debug_print
-	func _register(w: ECSWorld, name: String) -> void:
+	func _register(w: ECSWorld, name: StringName) -> void:
 		_w_name = w.name()
 		_world = weakref(w)
 		w.add_callable(name, _on_event)
-	func _unregister(w: ECSWorld, name: String) -> void:
+	func _unregister(w: ECSWorld, name: StringName) -> void:
 		w.remove_callable(name, _on_event)
 		_world = null
-	func _on_event(e: ECSEvent) -> void:
+	func _on_event(e: GameEvent) -> void:
 		if _debug_print:
 			print("command <%s:%s> execute." % [_w_name, e.name])
 		var cmd: ECSCommand = _class.new()
@@ -271,7 +204,7 @@ class _command_shell extends RefCounted:
 		cmd._set_name(_c_name)
 		cmd.execute(e)
 	
-func add_command(name: String, cmd_script: GDScript) -> bool:
+func add_command(name: StringName, cmd_script: GDScript) -> bool:
 	if cmd_script == null:
 		print("add command <%s:%s> fail: GDScript is null." % [_name, name])
 		return false
@@ -283,7 +216,7 @@ func add_command(name: String, cmd_script: GDScript) -> bool:
 		print("command <%s:%s> add to ECSWorld." % [_name, name])
 	return true
 	
-func remove_command(name: String) -> bool:
+func remove_command(name: StringName) -> bool:
 	if _command_pool.has(name):
 		var shell: _command_shell = _command_pool[name]
 		shell._unregister(self, name)
@@ -292,47 +225,67 @@ func remove_command(name: String) -> bool:
 	return _command_pool.erase(name)
 	
 func remove_all_commands() -> bool:
-	for name: String in _command_pool.keys():
+	for name: StringName in _command_pool.keys():
 		remove_command(name)
 	return true
 	
-func has_command(name: String) -> bool:
+func has_command(name: StringName) -> bool:
 	return _command_pool.has(name)
 	
-func add_callable(name: String, c: Callable) -> void:
+func add_callable(name: StringName, c: Callable) -> void:
 	_event_pool.add_callable(name, c)
 	
-func remove_callable(name: String, c: Callable) -> void:
+func remove_callable(name: StringName, c: Callable) -> void:
 	_event_pool.remove_callable(name, c)
 	
-func notify(event_name: String, value = null) -> void:
+func notify(event_name: StringName, value: Variant = null) -> void:
 	if debug_print and not ignore_notify_log.has(event_name):
 		print('notify <%s> "%s", %s.' % [_name, event_name, value])
 	_event_pool.notify(event_name, value)
 	
-func send(e: ECSEvent) -> void:
+func send(e: GameEvent) -> void:
 	if debug_print and not ignore_notify_log.has(e.name):
 		print('send <%s> "%s", %s.' % [_name, e.name, e.data])
 	_event_pool.send(e)
 	
-func _get_type_list(name: String) -> Dictionary:
+func update(delta: float) -> void:
+	on_update.emit(delta)
+	
+func set_system_update(name: StringName, enable: bool) -> void:
+	var system := get_system(name)
+	if system == null or not system.has_method("_on_update"):
+		return
+	if enable:
+		if not on_update.is_connected(system._on_update):
+			on_update.connect(system._on_update)
+	else:
+		if on_update.is_connected(system._on_update):
+			on_update.disconnect(system._on_update)
+	
+func is_system_updating(name: StringName) -> bool:
+	var system := get_system(name)
+	if system == null or not system.has_method("_on_update"):
+		return false
+	return on_update.is_connected(system._on_update)
+	
+# ==============================================================================
+# private
+func _get_type_list(name: StringName) -> Dictionary:
 	if not _type_component_dict.has(name):
 		_type_component_dict[name] = {}
 	return _type_component_dict[name]
 	
-func _is_satisfy_components(e: ECSEntity, names: Array) -> bool:
-	for key: String in names:
-		if not has_component(e.id(), key):
-			return false
-	return true
-	
 func _get_satisfy_components(e: ECSEntity, names: Array) -> Dictionary:
-	var result := {}
-	for key: String in names:
-		result[key] = get_component(e.id(), key)
+	var result := {
+		"entity": e,
+	}
+	for c: ECSComponent in names.map(func(key: StringName):
+		return get_component(e.id(), key)
+	):
+		result.set(c.name(), c)
 	return result
 	
-func _add_entity_component(entity_id: int, name: String, component: ECSComponent) -> bool:
+func _add_entity_component(entity_id: int, name: StringName, component: ECSComponent) -> bool:
 	if not has_entity(entity_id):
 		return false
 	var entity_dict: Dictionary = _entity_component_dict[entity_id]
@@ -341,7 +294,7 @@ func _add_entity_component(entity_id: int, name: String, component: ECSComponent
 	type_list[entity_id] = component
 	return true
 	
-func _remove_entity_component(entity_id: int, name: String) -> bool:
+func _remove_entity_component(entity_id: int, name: StringName) -> bool:
 	if not has_entity(entity_id):
 		return false
 	var type_list: Dictionary = _type_component_dict[name]
@@ -350,10 +303,18 @@ func _remove_entity_component(entity_id: int, name: String) -> bool:
 	return entity_dict.erase(name)
 	
 func _create_entity(eid: int) -> ECSEntity:
-	var e := ECSEntity.new(eid, self) if not debug_entity else DebugEntity.new(eid, self)
+	var e := _create_entity_callback.call(eid)
 	_entity_pool[eid] = e
 	_entity_component_dict[eid] = {}
 	if debug_print:
 		print("entity <%s:%d> created." % [_name, eid])
 	return e
+	
+var _create_entity_callback: Callable
+	
+func _create_common_entity(id: int) -> ECSEntity:
+	return ECSEntity.new(id, self)
+	
+func _create_debug_entity(id: int) -> ECSEntity:
+	return DebugEntity.new(id, self)
 	

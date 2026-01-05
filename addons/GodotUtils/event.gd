@@ -1,7 +1,7 @@
 extends RefCounted
-class_name ECSEvent
+class_name GameEvent
 
-var name: String:
+var name: StringName:
 	set(v):
 		pass
 	get:
@@ -13,7 +13,7 @@ var data:
 	get:
 		return _data
 	
-var event_center: ECSEventCenter:
+var event_center: GameEventCenter:
 	set(v):
 		pass
 	get:
@@ -21,14 +21,14 @@ var event_center: ECSEventCenter:
 
 # ==============================================================================
 # private
-var _name: String
-var _data
+var _name: StringName
+var _data: Variant
 var _event_center: WeakRef
 	
-func _init(n: String, d) -> void:
+func _init(n: StringName, d: Variant) -> void:
 	_name = n
 	_data = d
 	
 func _to_string() -> String:
-	return "ECSEvent(\"%s\", %s)" % [_name, _data]
+	return "GameEvent(\"%s\", %s)" % [_name, _data]
 	

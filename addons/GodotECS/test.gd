@@ -6,39 +6,31 @@ var _entity: ECSEntity
 
 func _init() -> void:
 	_world.debug_print = true
-	test_entity()
-	test_component()
-	test_system()
-	test_remove_component()
-	test_remove_entity()
-	test_remove_system()
-	mixed_test()
-	test_snapshot()
-	test_event()
-	test_command()
-	test_entity_add_to_group()
+	_test_entity()
+	_test_component()
+	_test_system()
+	_test_remove_component()
+	_test_remove_entity()
+	_test_remove_system()
+	_mixed_test()
+	_test_snapshot()
+	_test_event()
+	_test_command()
+	_test_update()
 	
 func queue_free() -> void:
 	_entity = null
 	_world.clear()
 	
-func test_entity() -> void:
+func _test_entity() -> void:
 	_entity = _world.create_entity()
-	_entity.add_to_group("first_entity")
-	_entity.add_to_group("test_group")
 	
 	var e: ECSEntity = _world.get_entity(_entity.id())
 	printt("entity id is equality:", e.id() == _entity.id())
 	
-	var first_entity_group: Array = _world.group("first_entity")
-	printt("first entity group:", first_entity_group.size(), first_entity_group.front().id())
-	
-	var test_entity_group: Array = _world.group("test_group")
-	printt("test entity group:", test_entity_group.size(), test_entity_group.front().id())
-	
 	print("")
 	
-func test_component() -> void:
+func _test_component() -> void:
 	_entity.add_component("c1", ECSComponent.new())
 	_entity.add_component("c2", ECSComponent.new())
 	_entity.add_component("c3", ECSComponent.new())
@@ -46,14 +38,14 @@ func test_component() -> void:
 	_entity.add_component("c5", ECSViewComponent.new(null))
 	print("")
 	
-func test_system() -> void:
+func _test_system() -> void:
 	_world.add_system("s1", ECSSystem.new())
 	_world.add_system("s2", ECSSystem.new())
 	_world.add_system("s2", ECSSystem.new())
 	_world.add_system("s3", ECSSystem.new())
 	print("")
 	
-func test_remove_component() -> void:
+func _test_remove_component() -> void:
 	_entity.remove_component("c1")
 	_entity.remove_component("c3")
 	
@@ -63,7 +55,7 @@ func test_remove_component() -> void:
 		print("component [%s]" % c)
 	print("")
 	
-func test_remove_entity() -> void:
+func _test_remove_entity() -> void:
 	_entity.destroy()
 	
 	var entity_id_list: Array = _world.get_entity_keys()
@@ -82,13 +74,13 @@ func test_remove_entity() -> void:
 			print("component [%s]" % c)
 	print("")
 	
-func test_remove_system() -> void:
+func _test_remove_system() -> void:
 	_world.remove_system("s1")
 	_world.remove_system("s3")
 	printt("system list:", _world.get_system_keys())
 	print("")
 	
-func mixed_test() -> void:
+func _mixed_test() -> void:
 	var e: ECSEntity = _world.create_entity()
 	e.add_component("c1", ECSComponent.new())
 	e.add_component("c2", ECSComponent.new())
@@ -114,40 +106,46 @@ func mixed_test() -> void:
 	printt("multi view list with filter:", _world.multi_view(["c1", "c2"], func(dict: Dictionary) -> bool:
 		return false))
 	
-func test_snapshot() -> void:
+func _test_snapshot() -> void:
 	var packer := ECSWorldPacker.new(_world)
-	var pack := packer.pack_world()
+	var pack := packer.pack()
 	print("\nworld snapshot:")
 	print(pack.data())
 	
+	print("\nworld snapshot with filter:")
+	var empty_packer := ECSWorldPacker.new(_world, ["must_saved"])
+	print(empty_packer.pack().data())
+	
+	print("\nworld restore:")
+	print(packer.unpack(pack))
+	
 	print("")
 	
-class event_tester extends ECSSystem:
-	func _on_enter(w: ECSWorld) -> void:
-		w.add_callable("test", _on_event)
-		pass
-	func _on_exit(w: ECSWorld) -> void:
-		w.remove_callable("test", _on_event)
-	func _on_event(e: ECSEvent) -> void:
-		printt("system [%s] on event [%s] with param [%s]" % [self.name(), e.name, e.data])
-	
-class callable_event_tester extends  ECSSystem:
+class _event_tester extends ECSSystem:
 	func _on_enter(w: ECSWorld) -> void:
 		w.add_callable("test", _on_event)
 	func _on_exit(w: ECSWorld) -> void:
 		w.remove_callable("test", _on_event)
-	func _on_event(e: ECSEvent) -> void:
+	func _on_event(e: GameEvent) -> void:
 		printt("system [%s] on event [%s] with param [%s]" % [self.name(), e.name, e.data])
 	
-func test_event() -> void:
+class _callable_event_tester extends  ECSSystem:
+	func _on_enter(w: ECSWorld) -> void:
+		w.add_callable("test", _on_event)
+	func _on_exit(w: ECSWorld) -> void:
+		w.remove_callable("test", _on_event)
+	func _on_event(e: GameEvent) -> void:
+		printt("system [%s] on event [%s] with param [%s]" % [self.name(), e.name, e.data])
+	
+func _test_event() -> void:
 	print("begin test add_listener for event:")
-	_world.add_system("test_event_system", event_tester.new())
+	_world.add_system("test_event_system", _event_tester.new())
 	_world.notify("test", "hello test event.")
 	_world.remove_system("test_event_system")
 	_world.notify("test", "hello test event.")
 	
 	print("\nbegin test add_callable for event:")
-	_world.add_system("test_event_system", callable_event_tester.new())
+	_world.add_system("test_event_system", _callable_event_tester.new())
 	_world.notify("test", "hello test event.")
 	_world.remove_system("test_event_system")
 	_world.notify("test", "hello test event.")
@@ -157,10 +155,10 @@ func test_event() -> void:
 class _cmd extends ECSCommand:
 	func _init() -> void:
 		print("test command init.")
-	func _on_execute(e: ECSEvent) -> void:
+	func _on_execute(e: GameEvent) -> void:
 		print("test command execute.")
 	
-func test_command() -> void:
+func _test_command() -> void:
 	_world.add_command("test_cmd_1", _cmd)
 	_world.add_command("test_cmd_2", _cmd)
 	
@@ -174,32 +172,14 @@ func test_command() -> void:
 	printt("has command", _world.has_command("test_cmd_1"))
 	print("")
 	
-func test_entity_add_to_group() -> void:
-	var e: ECSEntity = _world.create_entity()
-	e.add_component("attack_unit")
-	e.add_component("game_unit")
-	e.add_to_group("battle")
-	e.add_to_group("attack")
+class _system_update extends ECSSystem:
+	func _on_update(delta: float) -> void:
+		print("system on update.")
 	
-	printt("entity group list:", e.get_groups())
-	e.remove_from_group("battle")
-	printt("entity group list:", e.get_groups())
-	var battle_entity_list: Array = _world.group("battle")
-	printt("battle entity size:", battle_entity_list.size())
-	
-	for i in 3:
-		var new_entity := _world.create_entity()
-		new_entity.add_component("game_unit")
-		new_entity.add_to_group("attack")
-	
-	assert(_world.group_view("attack", "game_unit").size() == 4 and \
-		_world.group_multi_view("attack", ["game_unit", "attack_unit"]).size() == 1
-	)
-	
-	for atk_entity: ECSEntity in _world.group("attack"):
-		atk_entity.destroy()
-	
-	assert(_world.group("attack").is_empty())
-	
-	print("")
+func _test_update() -> void:
+	_world.add_system("update_system", _system_update.new())
+	_world.update(1/60.0)
+	_world.set_system_update("update_system", false)
+	_world.update(1/60.0)
+	_world.remove_system("update_system")
 	

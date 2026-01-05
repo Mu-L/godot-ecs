@@ -11,15 +11,15 @@ var version: int:
 		return _get_version()
 	
 # set variable
-func set_var(key: String, value) -> void:
+func set_var(key: StringName, value) -> void:
 	_set_var(key, value)
 	
 # get variable
-func get_var(key: String, defaultValue = null):
+func get_var(key: StringName, defaultValue = null):
 	return _get_var(key, defaultValue)
 	
 # remove variable
-func remove(key: String) -> bool:
+func remove(key: StringName) -> bool:
 	return _remove(key)
 	
 # copy
@@ -28,15 +28,15 @@ func copy_from(other) -> void:
 	
 # ==============================================================================
 # override
-func _set_var(key: String, value) -> void:
+func _set_var(key: StringName, value) -> void:
 	pass
 	
 # override
-func _get_var(key: String, defaultValue):
+func _get_var(key: StringName, defaultValue):
 	return defaultValue
 	
 # override
-func _remove(key: String) -> bool:
+func _remove(key: StringName) -> bool:
 	return false
 	
 # override

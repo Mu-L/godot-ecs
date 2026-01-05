@@ -1,32 +1,32 @@
 extends RefCounted
-class_name ECSEventCenter
+class_name GameEventCenter
 	
-var _event_dict: Dictionary
+var _event_dict: Dictionary[StringName, _listener]
 	
-func add_callable(name: String, c: Callable) -> bool:
+func add_callable(name: StringName, c: Callable) -> bool:
 	return _get_event_listener(name).add(c)
 	
-func remove_callable(name: String, c: Callable) -> bool:
+func remove_callable(name: StringName, c: Callable) -> bool:
 	return _get_event_listener(name).remove(c)
 	
-func notify(name: String, value = null) -> void:
-	send( ECSEvent.new(name, value) )
+func notify(name: StringName, value: Variant = null) -> void:
+	send( GameEvent.new(name, value) )
 	
-func send(e: ECSEvent) -> void:
+func send(e: GameEvent) -> void:
 	e._event_center = weakref(self)
 	_get_event_listener(e.name).receive(e)
 	
 func clear() -> void:
 	_event_dict.clear()
 	
-func _get_event_listener(name: String) -> _listener:
+func _get_event_listener(name: StringName) -> _listener:
 	if not _event_dict.has(name):
 		_event_dict[name] = _listener.new()
 	return _event_dict[name]
 	
 # implement listener
 class _listener extends RefCounted:
-	signal _impl(e: ECSEvent)
+	signal _impl(e: GameEvent)
 	func add(c: Callable) -> bool:
 		if _impl.is_connected(c):
 			return false
@@ -37,6 +37,6 @@ class _listener extends RefCounted:
 			return false
 		_impl.disconnect(c)
 		return true
-	func receive(e: ECSEvent) -> void:
+	func receive(e: GameEvent) -> void:
 		_impl.emit(e)
 	

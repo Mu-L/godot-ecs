@@ -1,5 +1,5 @@
 extends RefCounted
-class_name ECSWorldPack
+class_name DataPack
 
 var _dict: Dictionary
 

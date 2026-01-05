@@ -1,18 +1,21 @@
-extends "Serialization/serialize.gd"
+extends Serializer
 class_name ECSComponent
 
-var _name: String
+var _name: StringName = "unknown"
 var _entity: ECSEntity
 var _world: WeakRef
 
-func name() -> String:
+func name() -> StringName:
 	return _name
 	
 func entity() -> ECSEntity:
 	return _entity
 	
 func world() -> ECSWorld:
-	return _world.get_ref()
+	return _world.get_ref() if _world else null
+	
+func remove_from_entity() -> void:
+	entity().remove_component(_name)
 	
 func _set_world(world: ECSWorld) -> void:
 	_world = weakref(world)

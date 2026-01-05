@@ -1,18 +1,18 @@
 extends RefCounted
-class_name ECSBytes
+class_name ByteStream
 
 var _data: PackedByteArray
 var _offset: int
 
-static func open(path: String) -> ECSBytes:
+static func open(path: StringName) -> ByteStream:
 	var f := FileAccess.open(path, FileAccess.READ)
 	if f:
 		var bytes := f.get_buffer(f.get_length())
 		f.close()
-		return ECSBytes.new(bytes)
+		return ByteStream.new(bytes)
 	return null
 	
-func write(path: String) -> bool:
+func write(path: StringName) -> bool:
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if not f:
 		return false
