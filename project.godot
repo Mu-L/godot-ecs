@@ -11,9 +11,14 @@ config_version=5
 [application]
 
 config/name="GodotECS"
-run/main_scene="res://demo/view/main.tscn"
+run/main_scene="uid://5dcdrxf40vxp"
 config/features=PackedStringArray("4.5")
 config/icon="res://icon.png"
+
+[display]
+
+window/size/viewport_width=1920
+window/size/viewport_height=1080
 
 [editor_plugins]
 

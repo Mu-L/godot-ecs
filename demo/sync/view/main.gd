@@ -1,7 +1,7 @@
 extends Node2D
 
-# get global ecs world
-var _world := ECSWorld.new("Demo")
+# create ecs world
+var _world := ECSWorld.new("SyncDemo")
 	
 @onready var _score = $VBoxContainer/Scroe
 @onready var _time = $VBoxContainer/Time
