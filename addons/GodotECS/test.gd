@@ -15,7 +15,6 @@ func _init() -> void:
 	_mixed_test()
 	_test_snapshot()
 	_test_event()
-	_test_command()
 	_test_update()
 	
 func queue_free() -> void:
@@ -150,26 +149,6 @@ func _test_event() -> void:
 	_world.remove_system("test_event_system")
 	_world.notify("test", "hello test event.")
 	
-	print("")
-	
-class _cmd extends ECSCommand:
-	func _init() -> void:
-		print("test command init.")
-	func _on_execute(e: GameEvent) -> void:
-		print("test command execute.")
-	
-func _test_command() -> void:
-	_world.add_command("test_cmd_1", _cmd)
-	_world.add_command("test_cmd_2", _cmd)
-	
-	_world.notify("test_cmd_2")
-	
-	printt("has command", _world.has_command("test_cmd_1"))
-	
-	_world.remove_command("test_cmd_1")
-	_world.notify("test_cmd_1")
-	
-	printt("has command", _world.has_command("test_cmd_1"))
 	print("")
 	
 class _system_update extends ECSSystem:
