@@ -24,8 +24,6 @@ var _event_pool := GameEventCenter.new()
 var _type_component_dict: Dictionary
 var _entity_component_dict: Dictionary
 
-var _scheduler := ECSScheduler.new()
-
 func _init(name := "ECSWorld") -> void:
 	_name = name
 	debug_entity = false
@@ -266,6 +264,22 @@ func _create_debug_entity(id: int) -> ECSEntity:
 	return DebugEntity.new(id, self)
 	
 # ==============================================================================
-func scheduler() -> ECSScheduler:
-	return _scheduler
+func create_scheduler(name: StringName, threads_size: int = -1) -> ECSScheduler:
+	assert(not _scheduler_pool.has(name))
+	var result := ECSScheduler.new(self)
+	result._set_threads_size(threads_size)
+	_scheduler_pool[name] = result
+	return result
+	
+func destroy_scheduler(name: StringName) -> bool:
+	if not _scheduler_pool.has(name):
+		return false
+	var scheduler := _scheduler_pool[name]
+	scheduler.finish()
+	return true
+	
+func get_scheduler(name: StringName) -> ECSScheduler:
+	return _scheduler_pool.get(name)
+	
+var _scheduler_pool: Dictionary[StringName, ECSScheduler]
 	
