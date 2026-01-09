@@ -70,14 +70,16 @@ func _post_batch_systems(systems: Array, delta: float) -> void:
 	var index: int = 0
 	for sys: ECSParallel in systems:
 		# finish callback
-		sys.finished = func():
-			_batch_mutex.lock()
-			_active_systems_count -= 1
-			_batch_mutex.unlock()
+		sys.finished = _system_finished
 		# push task
 		var worker: ECSWorker = _queue[index % _queue.size()]
 		worker.push(SystemTask.new(sys.thread_function.bind(delta)))
 		index += 1
+		
+func _system_finished() -> void:
+	_batch_mutex.lock()
+	_active_systems_count -= 1
+	_batch_mutex.unlock()
 	
 func _wait_systems_completed() -> void:
 	while true:

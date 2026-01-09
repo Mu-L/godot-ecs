@@ -8,8 +8,7 @@ enum {
 
 const Commands = preload("scheduler_commands.gd")
 
-var finished := func() -> void:
-	pass
+var finished := _empty_finished
 
 var delta: float:
 	set(v):
@@ -76,7 +75,9 @@ func thread_function(delta: float) -> void:
 			_view_components(view)
 		
 	# notify completed
-	finished.call()
+	var _finished := finished
+	finished = _empty_finished
+	_finished.call()
 	
 # ==============================================================================
 # override
@@ -104,4 +105,7 @@ func _init(name: StringName, parent: Node = null) -> void:
 	
 func _set_world(w: ECSWorld) -> void:
 	_world = w
+	
+func _empty_finished() -> void:
+	pass
 	
