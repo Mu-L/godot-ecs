@@ -1,4 +1,4 @@
-extends Node
+extends RefCounted
 class_name ECSParallel
 
 enum {
@@ -59,12 +59,6 @@ func fetch_after_systems(querier: Callable) -> void:
 func views_count() -> int:
 	return _views.size()
 	
-func duplicate_parallel() -> ECSParallel:
-	var result := _duplicate()
-	if result.get_parent() == null:
-		add_child(result)
-	return result
-	
 # final
 func thread_function(delta: float, task_poster := Callable()) -> void:
 	# view list components
@@ -81,7 +75,7 @@ func thread_function(delta: float, task_poster := Callable()) -> void:
 		if _sub_systems.size() < _views.size():
 			# create sub parallel systems
 			for i in _views.size() - _sub_systems.size():
-				var sys := duplicate_parallel()
+				var sys := _duplicate()
 				assert(sys, "ECSParallel needs to implement the _duplicate() method when parallel execution of subtasks is required!")
 				_sub_systems.append(sys)
 		# create job list
@@ -145,9 +139,6 @@ func _view_components(_view: Dictionary) -> void:
 func _init(name: StringName, parent: Node = null) -> void:
 	_name = name
 	_commands = Commands.new()
-	set_name("parallel_%s" % name)
-	if parent:
-		parent.add_child(self)
 	
 func _set_world(w: ECSWorld) -> void:
 	_world = w
