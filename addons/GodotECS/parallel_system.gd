@@ -77,6 +77,7 @@ func thread_function(delta: float, task_poster := Callable(), steal_and_execute 
 	_views = _world.multi_view(_list_components().keys())
 	# empty check
 	if _views.is_empty():
+		_on_finished()
 		return
 		
 	# save delta
@@ -131,9 +132,7 @@ func thread_function(delta: float, task_poster := Callable(), steal_and_execute 
 			_view_components(view)
 		
 	# notify completed
-	var _finished := finished
-	finished = _empty_finished
-	_finished.call()
+	_on_finished()
 	
 # ==============================================================================
 # override
@@ -170,6 +169,11 @@ func _set_world(w: ECSWorld) -> void:
 # private
 func _empty_finished() -> void:
 	pass
+	
+func _on_finished() -> void:
+	var _finished := finished
+	finished = _empty_finished
+	_finished.call()
 	
 var _sub_jobs_count: int = 0
 var _sub_mutex := Mutex.new()

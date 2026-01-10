@@ -18,6 +18,7 @@ var _queue: Array[ECSWorker]
 
 func add_systems(systems: Array) -> ECSScheduler:
 	for sys: ECSParallel in systems:
+		assert(not sys._list_components().is_empty())
 		_system_pool[sys.name()] = sys
 	for sys: ECSParallel in systems:
 		sys.fetch_before_systems(_set_system_before)
@@ -243,7 +244,8 @@ class DependencyBuilder extends RefCounted:
 			ready_queue = next_loop_deferred + unlocked_nodes
 			
 		# 返回结果：Array[Array[StringName]]
-		catch.call(result_batches)
+		for batch_keys: Array in result_batches:
+			catch.call(batch_keys)
 
 	# --- Helpers ---
 	

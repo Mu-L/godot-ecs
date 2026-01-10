@@ -5,7 +5,11 @@ extends Node2D
 var _world := ECSWorld.new("AsyncDemo")
 
 class LightSystem extends ECSParallel:
-	pass
+	# override
+	func _list_components() -> Dictionary[StringName, int]:
+		return {
+			&"my_component": READ_ONLY,
+		}
 	
 class HeavyWorkSystem extends ECSParallel:
 	# override
