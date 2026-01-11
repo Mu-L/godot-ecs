@@ -24,6 +24,9 @@ var _event_pool := GameEventCenter.new()
 var _type_component_dict: Dictionary
 var _entity_component_dict: Dictionary
 
+const QueryCache = preload("query_cache.gd")
+var _query_caches: Dictionary
+
 func _init(name := "ECSWorld") -> void:
 	_name = name
 	debug_entity = false
@@ -76,6 +79,8 @@ func add_component(entity_id: int, name: StringName, component := ECSComponent.n
 	component._name = name
 	component._entity = get_entity(entity_id)
 	component._set_world(self)
+	for cache in _query_caches.values():
+		cache.on_component_changed(entity_id, name, true)
 	if debug_print:
 		print("component <%s:%s> add to entity <%d>." % [_name, name, entity_id])
 	# 实体组件添加信号
@@ -87,6 +92,8 @@ func remove_component(entity_id: int, name: StringName) -> bool:
 	var c: ECSComponent = get_component(entity_id, name)
 	if not c or not _remove_entity_component(entity_id, name):
 		return false
+	for cache in _query_caches.values():
+		cache.on_component_changed(entity_id, name, false)
 	if debug_print:
 		print("component <%s:%s> remove from entity <%d>." % [_name, name, entity_id])
 	# 实体组件移除信号
@@ -132,18 +139,24 @@ func view(name: StringName, filter := Callable()) -> Array:
 	return values.filter(filter) if filter.is_valid() else values
 	
 func multi_view(names: Array, filter := Callable()) -> Array:
-	var views: Array = view(names.front())
-	if views.is_empty():
+	if names.is_empty():
 		return []
-	views = views.filter(func(c: ECSComponent):
-		return names.all(func(key: StringName):
-			return has_component(c.entity().id(), key)
-		)
-	)
-	views = views.map(func(c: ECSComponent):
-		return _get_satisfy_components(c.entity(), names)
-	)
-	return views.filter(filter) if filter.is_valid() else views
+	
+	var sorted_names = names.duplicate()
+	sorted_names.sort()
+	var cache_key = "_".join(sorted_names)
+	
+	var cache: QueryCache
+	if _query_caches.has(cache_key):
+		cache = _query_caches[cache_key]
+	else:
+		cache = QueryCache.new(self, sorted_names)
+		_query_caches[cache_key] = cache
+	
+	if filter.is_valid():
+		return cache.results.filter(filter)
+	else:
+		return cache.results
 	
 func add_system(name: StringName, system: ECSSystem) -> bool:
 	remove_system(name)

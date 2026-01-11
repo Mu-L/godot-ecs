@@ -68,8 +68,7 @@ func flush_commands() -> void:
 # final
 func thread_function(delta: float, task_poster := Callable(), steal_and_execute := Callable()) -> void:
 	# view list components
-	if _views.is_empty():
-		_views = _world.multi_view(_list_components().keys())
+	_views = _world.multi_view(_list_components().keys())
 	# empty check
 	if _views.is_empty():
 		return

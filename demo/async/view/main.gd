@@ -39,6 +39,11 @@ func _ready() -> void:
 		LightSystem.new(&"light1"),
 		LightSystem.new(&"light2"),
 		LightSystem.new(&"light3"),
+		LightSystem.new(&"light4"),
+		LightSystem.new(&"light5"),
+		LightSystem.new(&"light6"),
+		LightSystem.new(&"light7"),
+		LightSystem.new(&"light8"),
 	]).build()
 	
 func _process(delta: float) -> void:
@@ -52,7 +57,7 @@ func _process(delta: float) -> void:
 		if _views.is_empty():
 			_views = _world.multi_view(["my_component"])
 			
-		for i in 5:
+		for i in 10:
 			for view: Dictionary in _views:
 				var c: MyComponent = view.my_component
 				c.value1 += 100
