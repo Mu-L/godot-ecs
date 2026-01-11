@@ -264,9 +264,9 @@ func _create_debug_entity(id: int) -> ECSEntity:
 	return DebugEntity.new(id, self)
 	
 # ==============================================================================
-func create_scheduler(name: StringName, threads_size: int = -1) -> ECSScheduler:
+func create_scheduler(name: StringName) -> ECSScheduler:
 	assert(not _scheduler_pool.has(name))
-	var result := ECSScheduler.new(self, threads_size)
+	var result := ECSScheduler.new(self)
 	_scheduler_pool[name] = result
 	return result
 	

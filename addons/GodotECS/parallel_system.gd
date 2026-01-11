@@ -8,15 +8,6 @@ enum {
 
 const Commands = preload("scheduler_commands.gd")
 
-class Task extends ECSWorker.Job:
-	var _task: Callable
-	func _init(task: Callable) -> void:
-		_task = task
-	func execute() -> void:
-		_task.call()
-
-var finished := _empty_finished
-
 var delta: float:
 	set(v):
 		pass
@@ -74,17 +65,16 @@ func views_count() -> int:
 # final
 func thread_function(delta: float, task_poster := Callable(), steal_and_execute := Callable()) -> void:
 	# view list components
-	_views = _world.multi_view(_list_components().keys())
+	if _views.is_empty():
+		_views = _world.multi_view(_list_components().keys())
 	# empty check
 	if _views.is_empty():
-		_on_finished()
 		return
 		
 	# save delta
 	_delta = delta
 		
 	if _parallel():
-		# parallel processing
 		if _sub_systems.size() < _views.size():
 			# create sub parallel systems
 			var SelfType = _self_type()
@@ -92,50 +82,18 @@ func thread_function(delta: float, task_poster := Callable(), steal_and_execute 
 			for i in _views.size() - _sub_systems.size():
 				var sys: ECSParallel = SelfType.new("SubSystem")
 				_sub_systems.append(sys)
-		# create job list
-		var jobs: Array[ECSWorker.Job]
-		jobs.resize(_views.size())
-		for i in _views.size():
-			var sys: ECSParallel = _sub_systems[i]
-			var view: Dictionary = _views[i]
+		var task_id := WorkerThreadPool.add_group_task(func(index: int):
+			var sys := _sub_systems[index]
 			sys._delta = delta
-			sys.finished = _sub_system_finished
-			jobs[i] = Task.new(
-				(func(sys: ECSParallel, view: Dictionary):
-					sys._view_components(view)
-					sys.finished.call())
-				.bind(sys, view)
-			)
-		# some init
-		_sub_jobs_count = jobs.size()
-		# post jobs
-		task_poster.call(jobs)
-		# wait sub jobs completed
-		while true:
-			# check completed
-			_sub_mutex.lock()
-			var active_count := _sub_jobs_count
-			_sub_mutex.unlock()
-			if active_count <= 0:
-				break
-			# work stealing
-			steal_and_execute.call()
-			
-		# merge all commands
-		for i in _views.size():
-			var commands := _sub_systems[i].commands()
-			if commands.is_empty():
-				continue
-			_commands.merge(commands)
-			commands.clear()
+			sys._view_components(_views[index]),
+			_views.size(),
+		)
+		WorkerThreadPool.wait_for_group_task_completion(task_id)
 	else:
 		# non-parallel processing
 		for view: Dictionary in _views:
 			_view_components(view)
 		
-	# notify completed
-	_on_finished()
-	
 # ==============================================================================
 # override
 ## Indicates to the external system whether to process component data in parallel, similar in effect to query.par_iter() in Bevy.
@@ -159,7 +117,7 @@ func _view_components(_view: Dictionary) -> void:
 	
 # ==============================================================================
 # final
-func _init(name: StringName, parent: Node = null) -> void:
+func _init(name: StringName) -> void:
 	_name = name
 	_commands = Commands.new()
 	
@@ -167,22 +125,4 @@ func _init(name: StringName, parent: Node = null) -> void:
 # private
 func _set_world(w: ECSWorld) -> void:
 	_world = w
-	
-# private
-func _empty_finished() -> void:
-	pass
-	
-func _on_finished() -> void:
-	var _finished := finished
-	finished = _empty_finished
-	_finished.call()
-	
-var _sub_jobs_count: int = 0
-var _sub_mutex := Mutex.new()
-var _sub_jobs_completed := Semaphore.new()
-	
-func _sub_system_finished() -> void:
-	_sub_mutex.lock()
-	_sub_jobs_count -= 1
-	_sub_mutex.unlock()
 	

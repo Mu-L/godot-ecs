@@ -10,11 +10,6 @@ var _system_group: Dictionary[StringName, int]
 
 # batch parallel systems
 var _batch_systems: Array[Array]
-var _active_systems_count: int = 0
-var _batch_mutex := Mutex.new()
-
-# worker queue
-var _queue: Array[ECSWorker]
 
 func add_systems(systems: Array) -> ECSScheduler:
 	for sys: ECSParallel in systems:
@@ -30,11 +25,6 @@ func add_systems(systems: Array) -> ECSScheduler:
 	
 ## Clear the scheduler
 func clear() -> void:
-	# clear workers
-	for worker in _queue:
-		worker.stop()
-	_queue.clear()
-	
 	# clear system pool
 	for sys: ECSParallel in _system_pool.values():
 		sys.queue_free()
@@ -47,8 +37,12 @@ func clear() -> void:
 	_system_group.clear()
 	
 func build() -> void:
-	_build_batch_systems()
-	_build_workers()
+	assert(not _system_pool.is_empty())
+	_batch_systems.clear()
+	if _system_pool.size() == 1:
+		_batch_systems.append(_system_pool.values())
+	else:
+		_build_batch_systems()
 	
 func run(_delta: float = 0.0) -> void:
 	_run_systems(_delta)
@@ -77,49 +71,21 @@ func _set_system_conflict(name: StringName, table: Dictionary) -> void:
 func _set_system_group(name: StringName, group: int) -> void:
 	_system_group[name] = group
 	
-func _init(world: ECSWorld, threads_size: int) -> void:
+func _init(world: ECSWorld) -> void:
 	_world = world
-	_threads_size = threads_size if threads_size >= 1 else OS.get_processor_count()
 	
 func _run_systems(delta: float) -> void:
 	for systems: Array in _batch_systems:
-		_post_batch_systems(systems, delta)
-		_wait_systems_completed()
+		var task_id := WorkerThreadPool.add_group_task(func(index: int):
+			var sys: ECSParallel = systems[index]
+			sys.thread_function(delta),
+			systems.size())
+		WorkerThreadPool.wait_for_group_task_completion(task_id)
 	
 func _flush_commands() -> void:
 	for systems: Array in _batch_systems:
 		for sys: ECSParallel in systems:
 			sys.commands().flush()
-	
-func _post_batch_systems(systems: Array, delta: float) -> void:
-	_active_systems_count = systems.size()
-	var index: int = 0
-	for sys: ECSParallel in systems:
-		# finish callback
-		sys.finished = _system_finished
-		# push task
-		var worker: ECSWorker = _queue[index % _queue.size()]
-		worker.push(ECSParallel.Task.new(sys.thread_function.bind(delta, worker.push_jobs, worker.steal_and_execute)))
-		index += 1
-		
-func _system_finished() -> void:
-	_batch_mutex.lock()
-	_active_systems_count -= 1
-	_batch_mutex.unlock()
-	
-func _wait_systems_completed() -> void:
-	while true:
-		# check completed
-		_batch_mutex.lock()
-		var active_count := _active_systems_count
-		_batch_mutex.unlock()
-		if active_count <= 0:
-			break
-		
-		# work stealing
-		if not _queue.pick_random().steal_and_execute():
-			# delay 100 us
-			OS.delay_usec(100)
 	
 func _build_batch_systems() -> void:
 	DependencyBuilder.new()\
@@ -131,13 +97,6 @@ func _build_batch_systems() -> void:
 			return _system_pool[key]
 		))
 	)
-	
-func _build_workers() -> void:
-	assert(_queue.is_empty())
-	for i in _threads_size:
-		_queue.append(ECSWorker.new(_queue))
-	for sys: ECSWorker in _queue:
-		sys.start()
 	
 # ==============================================================================
 # private
