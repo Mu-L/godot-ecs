@@ -2,6 +2,7 @@ extends RefCounted
 class_name ECSWorld
 
 const VERSION = "1.0.0"
+const Querier = preload("querier.gd")
 
 var debug_print: bool		# ecs logging
 var debug_entity: bool:		# for entity debugging
@@ -154,8 +155,8 @@ func multi_view(names: Array) -> Array:
 	
 	return cache.results
 	
-func query() -> ECSQuerier:
-	return ECSQuerier.new(self)
+func query() -> Querier:
+	return Querier.new(self)
 	
 func add_system(name: StringName, system: ECSSystem) -> bool:
 	remove_system(name)

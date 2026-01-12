@@ -1,21 +1,21 @@
 extends RefCounted
-class_name ECSQuerier
+class_name __Querier__
 
 # ==============================================================================
 # public
-func with(names: Array) -> ECSQuerier:
+func with(names: Array) -> __Querier__:
 	_with_names = names
 	return self
 	
-func without(names: Array) -> ECSQuerier:
+func without(names: Array) -> __Querier__:
 	_without_names = names
 	return self
 	
-func any_of(names: Array) -> ECSQuerier:
+func any_of(names: Array) -> __Querier__:
 	_any_names = names
 	return self
 	
-func filter(predicate: Callable) -> ECSQuerier:
+func filter(predicate: Callable) -> __Querier__:
 	_custom_filter = predicate
 	return self
 	
