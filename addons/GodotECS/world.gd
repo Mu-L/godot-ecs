@@ -139,8 +139,12 @@ func view(name: StringName) -> Array:
 	return _type_component_dict[name].values()
 	
 func multi_view(names: Array) -> Array:
+	var cache := multi_view_cache(names)
+	return cache.results if cache else []
+	
+func multi_view_cache(names: Array) -> QueryCache:
 	if names.is_empty():
-		return []
+		return null
 	
 	var sorted_names = names.duplicate()
 	sorted_names.sort()
@@ -153,7 +157,7 @@ func multi_view(names: Array) -> Array:
 		cache = QueryCache.new(self, sorted_names)
 		_query_caches[cache_key] = cache
 	
-	return cache.results
+	return cache
 	
 func query() -> Querier:
 	return Querier.new(self)
