@@ -132,13 +132,12 @@ func has_component(entity_id: int, name: StringName) -> bool:
 	var entity_dict: Dictionary = _entity_component_dict[entity_id]
 	return entity_dict.has(name)
 	
-func view(name: StringName, filter := Callable()) -> Array:
+func view(name: StringName) -> Array:
 	if not _type_component_dict.has(name):
 		return []
-	var values: Array = _type_component_dict[name].values()
-	return values.filter(filter) if filter.is_valid() else values
+	return _type_component_dict[name].values()
 	
-func multi_view(names: Array, filter := Callable()) -> Array:
+func multi_view(names: Array) -> Array:
 	if names.is_empty():
 		return []
 	
@@ -153,10 +152,10 @@ func multi_view(names: Array, filter := Callable()) -> Array:
 		cache = QueryCache.new(self, sorted_names)
 		_query_caches[cache_key] = cache
 	
-	if filter.is_valid():
-		return cache.results.filter(filter)
-	else:
-		return cache.results
+	return cache.results
+	
+func query() -> ECSQuerier:
+	return ECSQuerier.new(self)
 	
 func add_system(name: StringName, system: ECSSystem) -> bool:
 	remove_system(name)
