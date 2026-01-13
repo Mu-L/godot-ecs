@@ -1,67 +1,152 @@
-# GodotECS
-Lightweight ecs framework written with gdscript.
+# Godot ECS Framework 🚀![](images/ecs.png)
 
-![](images/ecs.png)
+[简体中文](./README_CN.md)
 
-# Features
+[Document](./docs/en/1.Getting_Started_and_Basics.md)
 
-- Lightweight and high-performance.
-- One step serialization and deserialization the game world.
-- Independent event system.
-- Hot-swappable system design.
-- Data-driven and event-driven.
-- Easy to use.
+A lightweight yet powerful **Entity Component System (ECS)** framework designed specifically for Godot 4.
 
-# How To Use
+Written purely in GDScript, this framework aims to solve the coupling problems arising from increased logic complexity in Godot projects. It provides a smooth transition path from "Godot-like" simple systems to "fully automated scheduled" high-performance parallel systems.
 
-- Download “GodotECS” to “addons” folder in your Godot project.
-- Begin your ECS coding journey with the following code:
+## ✨ Core Features
+
+* **Pure GDScript Implementation**: No GDExtension compilation required, plug-and-play, easy debugging.
+* **Dual Mode Design**:
+  * **Direct Mode (`ECSSystem`)**: Single-threaded, stateful, suitable for UI and game flow control, aligning with Godot intuition.
+  * **Scheduled Mode (`ECSParallel`)**: Multi-threaded, automatic dependency analysis, suitable for high-performance computing and massive entity simulation.
+* **High-Performance Scheduler**: Built-in dependency graph (DAG) based on topological sorting, automatically handling system execution order and resource read/write conflicts.
+* **Automatic Multi-threading**: Utilizes Godot 4's `WorkerThreadPool` for automatic task distribution.
+* **Powerful Query System**: Supports `With/Without/AnyOf` complex queries, with O(1) cached query performance (`QueryCache`).
+* **Complete Ecosystem**: Built-in **Serialization/Save System** (supports version migration) and **Event System**.
+
+## 📦 Installation
+
+1. Download this repository.
+2. Copy the `GodotECS` and `GodotUtils` folders to your Godot project's `res://` root directory.
+3. Done! No plugin configuration needed, reference directly in code.
+
+## ⚡ Quick Start
+
+### 1. Initialize World
+
+In your main scene script:
 
 ```gdscript
+extends Node
 
-# create ecs world
-var world := ECSWorld.new()
+var _world: ECSWorld
 
-# create entity
-var new_entity: ECSEntity = world.create_entity()
+func _ready() -> void:
+    # Create world
+    _world = ECSWorld.new("MyGameWorld")
 
-# add component
-new_entity.add_component("c1", ECSComponent.new())
-new_entity.add_component("c2", ECSComponent.new())
-new_entity.add_component("c3", ECSComponent.new())
+    # Register system (Direct Mode example)
+    _world.add_system("MoveSystem", SysMovement.new())
 
-# add system
-world.add_system("s1", ECSSystem.new())
-world.add_system("s2", ECSSystem.new())
-world.add_system("s3", ECSSystem.new())
+    # Create an entity
+    var entity = _world.create_entity()
+    entity.add_component("Position", CompPos.new(0, 0))
+    entity.add_component("Velocity", CompVel.new(10, 0))
 
-# add command
-world.add_command("my_command", ECSCommand)
+func _process(delta: float) -> void:
+    # Drive world update
+    _world.update(delta)
 
-# send notification
-world.notify("my_notification", with_param)
-world.notify("my_command", with_param)
-
-# view components
-for c: ECSComponent in world.view("c1"):
-	print(c)
-
-# multi view components
-for dict: Dictionary in world.multi_view(["c1", "c2", "c3"]):
-	print(dict)
-
-# save game
-var packer := ECSWorldPacker.new(world)
-var pack := packer.pack_world()
-# pack.data() write to file
-
-# load game
-packer.unpack_world(pack)
-
+func _exit_tree() -> void:
+    _world.clear()
 ```
 
-# Funding
+### 2. Define Components
 
-If you've found GodotECS useful, feel free to fund me on ko-fi:
+Components are simply data containers.
 
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/baifeng)
+```gdscript
+class CompPos extends ECSComponent:
+    var x: float = 0
+    var y: float = 0
+    func _init(px=0, py=0): x=px; y=py
+
+class CompVel extends ECSDataComponent:
+    # ECSDataComponent comes with a 'data' property
+    pass 
+```
+
+### 3. Define Systems
+
+#### Method A: Direct Mode (Simple & Intuitive)
+
+Suitable for game logic, input, and UI.
+
+```gdscript
+class SysMovement extends ECSSystem:
+    func _on_update(delta: float) -> void:
+        # Get all entities with Position and Velocity
+        var list = world().multi_view(["Position", "Velocity"])
+
+        for item in list:
+            var pos = item["Position"]
+            var vel = item["Velocity"]
+            pos.x += vel.data * delta
+```
+
+#### Method B: Scheduled Mode (High Performance)
+
+Suitable for physics simulation and AI clusters. Supports dependency sorting and automatic parallelism.
+
+```gdscript
+class SysPhysics extends ECSParallel:
+    func _init(): super._init("Physics")
+
+    # 1. Declare read/write permissions for scheduler analysis
+    func _list_components() -> Dictionary:
+        return {
+            "Position": ECSParallel.READ_WRITE,
+            "Velocity": ECSParallel.READ_ONLY
+        }
+
+    # 2. Enable multi-threaded parallel processing
+    func _parallel() -> bool: return true
+
+    # 3. Business logic (Pass in thread-safe CommandBuffer)
+    func _view_components(view: Dictionary, cmds: ECSParallel.Commands) -> void:
+        view["Position"].x += view["Velocity"].data * delta
+```
+
+## 🏗️ Architecture Overview
+
+### Direct Mode vs Scheduled Mode
+
+| Feature               | ECSSystem (Direct)                  | ECSParallel (Scheduled)                           |
+|:--------------------- |:----------------------------------- |:------------------------------------------------- |
+| **Primary Use**       | Game logic, UI, Input, Flow control | Physics, AI, Massive data operations              |
+| **Threading Model**   | Single-threaded (Main Thread)       | **Multi-threaded (WorkerThreadPool)**             |
+| **State Management**  | Stateful allowed                    | Stateless, Pure Logic                             |
+| **Execution Order**   | Manually added order                | **Automatic dependency sorting (.after/.before)** |
+| **Data Modification** | Direct API calls                    | **Deferred modification using CommandBuffer**     |
+
+### Directory Structure
+
+* `GodotECS/`: Core framework code (World, Entity, System, Scheduler).
+* `GodotUtils/`: Utility libraries (EventCenter, Serialization, Factory).
+
+## 💾 Serialization Support
+
+The framework has built-in powerful save support, even supporting data structure upgrades:
+
+```gdscript
+# Save
+var packer = ECSWorldPacker.new(_world).with_factory(factory)
+var data = packer.pack() # Get serializable DataPack
+
+# Load
+packer.unpack(data) # Automatically restore world state
+```
+
+## 🤝 Contribution
+
+Issues and PRs are welcome!
+If you find a bug or have suggestions for performance optimization, please let us know.
+
+## 📄 License
+
+This project is licensed under the [MIT License](LICENSE).
