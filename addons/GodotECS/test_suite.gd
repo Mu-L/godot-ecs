@@ -162,12 +162,14 @@ func _test_query_system() -> void:
 	_assert(res_filter.size() == 2, "Query Filter check")
 
 func _test_events() -> void:
-	var received_count = 0
-	var last_msg = ""
+	var test_data := {
+		"received_count": 0,
+		"last_msg": "",
+	}
 	
 	var callback = func(e: GameEvent):
-		received_count += 1
-		last_msg = e.data
+		test_data.received_count += 1
+		test_data.last_msg = e.data
 		
 	_world.add_callable("test_event", callback)
 	
@@ -175,12 +177,12 @@ func _test_events() -> void:
 	_world.notify("test_event", "world")
 	_world.notify("other_event", "ignore")
 	
-	_assert(received_count == 2, "Should receive 2 test_events")
-	_assert(last_msg == "world", "Order of events check")
+	_assert(test_data.received_count == 2, "Should receive 2 test_events")
+	_assert(test_data.last_msg == "world", "Order of events check")
 	
 	_world.remove_callable("test_event", callback)
 	_world.notify("test_event", "again")
-	_assert(received_count == 2, "Should stop receiving after remove")
+	_assert(test_data.received_count == 2, "Should stop receiving after remove")
 
 func _test_commands() -> void:
 	var cmds = ECSSchedulerCommands.new()
@@ -285,6 +287,10 @@ func _test_serialization() -> void:
 	# 3. Destroy World
 	_world.clear()
 	_assert(_world.get_entity_keys().is_empty(), "World cleared")
+	
+	# 3.1 register inner class help test success
+	packer.factory().register(CompPos)
+	packer.factory().register(CompHealth, [0])
 	
 	# 4. Unpack
 	var success = packer.unpack(data_pack)

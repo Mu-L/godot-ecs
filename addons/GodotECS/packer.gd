@@ -2,6 +2,15 @@ extends DataPacker
 class_name ECSWorldPacker
 
 # ==============================================================================
+# public
+func with_factory(f: ObjectFactory) -> ECSWorldPacker:
+	_factory = f
+	return self
+	
+func factory() -> ObjectFactory:
+	return _factory
+	
+# ==============================================================================
 # override
 func _pack() -> DataPack:
 	var dict := {
@@ -19,6 +28,7 @@ func _unpack(pack: DataPack) -> bool:
 # private
 var _w: ECSWorld
 var _filter: Array[StringName]
+var _factory := ObjectFactory.new()
 	
 func _init(w: ECSWorld, filter: Array[StringName] = []) -> void:
 	_w = w
@@ -26,7 +36,6 @@ func _init(w: ECSWorld, filter: Array[StringName] = []) -> void:
 	
 func _pack_entities(dict: Dictionary) -> void:
 	var entity_data := {}
-	var class_list: Array[StringName]
 	var uid_list: Array[int]
 	
 	# 全量保存
@@ -36,7 +45,7 @@ func _pack_entities(dict: Dictionary) -> void:
 			var entity_dict := {
 				"components": {},
 			}
-			_pack_components(e, entity_dict["components"], class_list, uid_list)
+			_pack_components(e, entity_dict["components"], uid_list)
 			entity_data[e.id()] = entity_dict
 	# 筛选保存
 	else:
@@ -45,26 +54,25 @@ func _pack_entities(dict: Dictionary) -> void:
 			var entity_dict := {
 				"components": {},
 			}
-			_pack_components(e, entity_dict["components"], class_list, uid_list)
+			_pack_components(e, entity_dict["components"], uid_list)
 			entity_data[e.id()] = entity_dict
 	
 	dict["entities"] = entity_data
 	dict["uid_list"] = uid_list
 	dict["last_entity_id"] = _w._entity_id
 	
-func _pack_components(e: ECSEntity, dict: Dictionary, class_list: Array[StringName], uid_list: Array[int]) -> void:
+func _pack_components(e: ECSEntity, dict: Dictionary, uid_list: Array[int]) -> void:
 	for c: ECSComponent in e.get_components():
 		var c_dict := {}
 		var output := Serializer.OutputArchive.new(c_dict)
 		c.pack(output)
 		dict[c.name()] = c_dict
 		
-		var resource_path := UIDManager.get_script_path(c)
-		var pos = class_list.find(resource_path)
+		var uid := _factory.object_to_uid(c)
+		var pos = uid_list.find(uid)
 		if pos == -1:
-			class_list.append(resource_path)
-			uid_list.append(UIDManager.get_uid_value_from_object(c))
-			pos = class_list.size() - 1
+			uid_list.append(uid)
+			pos = uid_list.size() - 1
 		c_dict["_class_index"] = pos
 	
 func _unpack_entities(dict: Dictionary) -> bool:
@@ -104,21 +112,19 @@ func _unpack_entities(dict: Dictionary) -> bool:
 func _valid_version(version: StringName) -> bool:
 	return true
 	
-func _unpack_components(e: ECSEntity, dict: Dictionary, class_list: Array[int]) -> void:
+func _unpack_components(e: ECSEntity, dict: Dictionary, uid_list: Array[int]) -> void:
 	# restore components
 	for name: StringName in dict:
 		
 		# get class index
 		var c_dict: Dictionary = dict[name]
 		var index: int = c_dict["_class_index"]
-		assert(index < class_list.size(), "unpack component fail: class index <%d> is invalid!" % index)
-		
-		# get class resource
-		var CompScript: Resource = load(UIDManager.id_to_text(class_list[index]))
-		assert(CompScript != null, "unpack component fail: script <%s> is not exist!" % class_list[index])
+		assert(index < uid_list.size(), "unpack component fail: class index <%d> is invalid!" % index)
 		
 		# create component
-		var c: ECSComponent = CompScript.new()
+		var uid := uid_list[index]
+		var c: ECSComponent = _factory.uid_to_object(uid)
+		assert(c != null, "unpack component fail: script <%s> is not exist!" % ResourceUID.id_to_text(uid_list[index]))
 		e.add_component(name, c)
 	
 func _unpack_archives(e: ECSEntity, dict: Dictionary) -> void:
