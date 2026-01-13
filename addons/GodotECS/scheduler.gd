@@ -47,6 +47,8 @@ func run(_delta: float = 0.0) -> void:
 	_run_systems(_delta)
 	_flush_commands()
 	
+# ==============================================================================
+# private
 func _insert_graph_node(key: StringName, value: StringName) -> void:
 	assert(_system_pool.has(value), "Scheduler must have system key [%s]!" % value)
 	if not _system_graph.has(key):
